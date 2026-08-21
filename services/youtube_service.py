@@ -69,7 +69,18 @@ def get_transcript(url: str) -> dict:
     try:
         if proxy_configured:
             proxy_url = f"http://{proxy_username}:{proxy_password}@p.webshare.io:80"
-            api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
+            # Try new-style proxy config first (youtube-transcript-api >= 0.6.3)
+            try:
+                from youtube_transcript_api.proxies import GenericProxyConfig
+                api = YouTubeTranscriptApi(
+                    proxy_config=GenericProxyConfig(
+                        http_url=proxy_url,
+                        https_url=proxy_url,
+                    )
+                )
+            except ImportError:
+                # Fall back to legacy proxies dict
+                api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
         else:
             api = YouTubeTranscriptApi()
 
