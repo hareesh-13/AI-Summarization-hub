@@ -4,6 +4,7 @@ Extract transcript and metadata from YouTube videos.
 """
 
 import re
+import os
 from typing import Optional
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
@@ -54,8 +55,19 @@ def get_transcript(url: str) -> dict:
             "Please paste a valid YouTube URL (e.g. https://youtu.be/dQw4w9WgXcQ)."
         )
 
+    # Build proxy config if credentials are available (needed on cloud deployments)
+    proxy_username = os.getenv("WEBSHARE_USERNAME", "").strip()
+    proxy_password = os.getenv("WEBSHARE_PASSWORD", "").strip()
+
     try:
-        transcript_list = YouTubeTranscriptApi().fetch(video_id)
+        if proxy_username and proxy_password:
+            from youtube_transcript_api import YouTubeTranscriptApi
+            proxy_url = f"http://{proxy_username}:{proxy_password}@p.webshare.io:80"
+            api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
+        else:
+            api = YouTubeTranscriptApi()
+
+        transcript_list = api.fetch(video_id)
         transcript_text = " ".join(seg.text for seg in transcript_list)
     except TranscriptsDisabled:
         raise ValueError("❌ Transcripts are disabled for this video.")
@@ -65,6 +77,13 @@ def get_transcript(url: str) -> dict:
             "Try a video that has auto-generated or manual captions."
         )
     except Exception as exc:
+        msg = str(exc)
+        if "blocked" in msg.lower() or "ip" in msg.lower() or "cloud" in msg.lower():
+            raise ValueError(
+                "❌ YouTube is blocking transcript requests from this server's IP address. "
+                "This is a cloud deployment restriction. "
+                "Please configure a Webshare proxy in your Streamlit secrets to fix this."
+            )
         raise ValueError(f"❌ Failed to fetch transcript: {exc}")
 
     title = get_video_title(video_id)
