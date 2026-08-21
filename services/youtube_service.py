@@ -55,13 +55,19 @@ def get_transcript(url: str) -> dict:
             "Please paste a valid YouTube URL (e.g. https://youtu.be/dQw4w9WgXcQ)."
         )
 
-    # Build proxy config if credentials are available (needed on cloud deployments)
-    proxy_username = os.getenv("WEBSHARE_USERNAME", "").strip()
-    proxy_password = os.getenv("WEBSHARE_PASSWORD", "").strip()
+    # Read proxy credentials — try st.secrets first (Streamlit Cloud), then os.getenv (local)
+    try:
+        import streamlit as st
+        proxy_username = st.secrets.get("WEBSHARE_USERNAME", "").strip()
+        proxy_password = st.secrets.get("WEBSHARE_PASSWORD", "").strip()
+    except Exception:
+        proxy_username = os.getenv("WEBSHARE_USERNAME", "").strip()
+        proxy_password = os.getenv("WEBSHARE_PASSWORD", "").strip()
+
+    proxy_configured = bool(proxy_username and proxy_password)
 
     try:
-        if proxy_username and proxy_password:
-            from youtube_transcript_api import YouTubeTranscriptApi
+        if proxy_configured:
             proxy_url = f"http://{proxy_username}:{proxy_password}@p.webshare.io:80"
             api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
         else:
@@ -77,13 +83,18 @@ def get_transcript(url: str) -> dict:
             "Try a video that has auto-generated or manual captions."
         )
     except Exception as exc:
-        msg = str(exc)
-        if "blocked" in msg.lower() or "ip" in msg.lower() or "cloud" in msg.lower():
-            raise ValueError(
-                "❌ YouTube is blocking transcript requests from this server's IP address. "
-                "This is a cloud deployment restriction. "
-                "Please configure a Webshare proxy in your Streamlit secrets to fix this."
-            )
+        msg = str(exc).lower()
+        if any(k in msg for k in ["blocked", "ip", "cloud", "requestblocked", "ipblocked"]):
+            if proxy_configured:
+                raise ValueError(
+                    "❌ The Webshare proxy credentials may be incorrect or the proxy is not working. "
+                    "Please double-check WEBSHARE_USERNAME and WEBSHARE_PASSWORD in your Streamlit secrets."
+                )
+            else:
+                raise ValueError(
+                    "❌ YouTube is blocking requests from this server. "
+                    "Add WEBSHARE_USERNAME and WEBSHARE_PASSWORD to your Streamlit Cloud secrets to fix this."
+                )
         raise ValueError(f"❌ Failed to fetch transcript: {exc}")
 
     title = get_video_title(video_id)
