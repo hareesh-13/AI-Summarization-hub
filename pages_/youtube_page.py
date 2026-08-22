@@ -150,6 +150,17 @@ def render():
     # ---------- Sidebar settings ----------
     length, style, strategy, custom_query = render_settings_sidebar(page_key="yt")
 
+    # ---------- Cloud deployment notice ----------
+    import os
+    is_cloud = os.getenv("STREAMLIT_SHARING_MODE") or os.getenv("IS_STREAMLIT_CLOUD") or not os.path.exists(".env")
+    if is_cloud:
+        st.info(
+            "⚠️ **Cloud Deployment Notice:** YouTube blocks transcript requests from cloud servers. "
+            "If summarization fails, it's due to YouTube's IP restrictions — not a bug in this app. "
+            "All other features (Website, Text, Document) work perfectly on this deployment.",
+            icon="ℹ️",
+        )
+
     # ---------- Input ----------
     url = st.text_input(
         "YouTube Video URL",
@@ -175,7 +186,14 @@ def render():
                 data = get_transcript(url.strip())
                 st.session_state.yt_video_data = data
             except ValueError as exc:
-                st.error(str(exc))
+                err_msg = str(exc)
+                st.error(err_msg)
+                if "blocking" in err_msg.lower() or "proxy" in err_msg.lower() or "407" in err_msg:
+                    st.warning(
+                        "💡 **Why does this happen?** YouTube blocks all requests from cloud servers "
+                        "(AWS, GCP, Azure, etc.) to prevent scraping. This is a YouTube restriction — "
+                        "not a bug in the app. The app works perfectly when run locally on your own machine."
+                    )
                 st.session_state.yt_video_data = None
                 st.session_state.yt_summary_result = None
                 return
