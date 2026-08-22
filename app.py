@@ -5,7 +5,15 @@ AI Summarization Hub — Main Streamlit Entry Point.
 Run with:
     streamlit run app.py
 """
+# =====================================================================
+# STEP 1: MUST BE THE FIRST LINES IN THE FILE (Bypass Streamlit Proxy)
+# =====================================================================
+import os
+import sys
 
+for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+    os.environ.pop(var, None)
+# =====================================================================
 import sys
 
 # Force UTF-8 output on Windows to avoid UnicodeEncodeError with emoji/special chars
